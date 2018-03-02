@@ -86,9 +86,11 @@ public class Javacord {
      * @param bot Whether the token is the token of a bot account or a normal account.
      * @return A new instance of DiscordAPI.
      */
-    public static DiscordAPI getApi(String token, boolean bot) {
+    public static DiscordAPI getApi(String token, boolean bot, int shard, int shardAmount) {
         DiscordAPI api = getApi();
         api.setToken(token, bot);
+        ((ImplDiscordAPI) api).shard = shard;
+        ((ImplDiscordAPI) api).shardAmount = shardAmount;
         return api;
     }
 

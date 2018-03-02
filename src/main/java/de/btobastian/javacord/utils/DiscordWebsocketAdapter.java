@@ -19,21 +19,41 @@
 package de.btobastian.javacord.utils;
 
 import com.google.common.util.concurrent.SettableFuture;
-import com.neovisionaries.ws.client.*;
+import com.neovisionaries.ws.client.WebSocket;
+import com.neovisionaries.ws.client.WebSocketAdapter;
+import com.neovisionaries.ws.client.WebSocketException;
+import com.neovisionaries.ws.client.WebSocketFactory;
+import com.neovisionaries.ws.client.WebSocketFrame;
 import de.btobastian.javacord.ImplDiscordAPI;
 import de.btobastian.javacord.utils.handler.ReadyHandler;
 import de.btobastian.javacord.utils.handler.ResumedHandler;
 import de.btobastian.javacord.utils.handler.channel.ChannelCreateHandler;
 import de.btobastian.javacord.utils.handler.channel.ChannelDeleteHandler;
 import de.btobastian.javacord.utils.handler.channel.ChannelUpdateHandler;
-import de.btobastian.javacord.utils.handler.message.*;
-import de.btobastian.javacord.utils.handler.server.*;
+import de.btobastian.javacord.utils.handler.message.MessageAckHandler;
+import de.btobastian.javacord.utils.handler.message.MessageBulkDeleteHandler;
+import de.btobastian.javacord.utils.handler.message.MessageCreateHandler;
+import de.btobastian.javacord.utils.handler.message.MessageDeleteHandler;
+import de.btobastian.javacord.utils.handler.message.MessageReactionAddHandler;
+import de.btobastian.javacord.utils.handler.message.MessageReactionRemoveHandler;
+import de.btobastian.javacord.utils.handler.message.MessageUpdateHandler;
+import de.btobastian.javacord.utils.handler.message.TypingStartHandler;
+import de.btobastian.javacord.utils.handler.server.GuildBanAddHandler;
+import de.btobastian.javacord.utils.handler.server.GuildBanRemoveHandler;
+import de.btobastian.javacord.utils.handler.server.GuildCreateHandler;
+import de.btobastian.javacord.utils.handler.server.GuildDeleteHandler;
+import de.btobastian.javacord.utils.handler.server.GuildMemberAddHandler;
+import de.btobastian.javacord.utils.handler.server.GuildMemberRemoveHandler;
+import de.btobastian.javacord.utils.handler.server.GuildMemberUpdateHandler;
+import de.btobastian.javacord.utils.handler.server.GuildMembersChunkHandler;
+import de.btobastian.javacord.utils.handler.server.GuildUpdateHandler;
 import de.btobastian.javacord.utils.handler.server.role.GuildRoleCreateHandler;
 import de.btobastian.javacord.utils.handler.server.role.GuildRoleDeleteHandler;
 import de.btobastian.javacord.utils.handler.server.role.GuildRoleUpdateHandler;
 import de.btobastian.javacord.utils.handler.user.PresenceUpdateHandler;
 import de.btobastian.javacord.utils.handler.user.UserGuildSettingsUpdateHandler;
 import de.btobastian.javacord.utils.handler.voice.VoiceStateUpdateHandler;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 
@@ -42,7 +62,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Future;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -350,6 +376,7 @@ public class DiscordWebsocketAdapter extends WebSocketAdapter {
                                 .put("$device", "Javacord")
                                 .put("$referrer", "")
                                 .put("$referring_domain", ""))
+                        .put("shard", new JSONArray().put(api.shard).put(api.shardAmount))
                         .put("compress", true)
                         .put("large_threshold", 250));
         logger.debug("Sending identify packet");
