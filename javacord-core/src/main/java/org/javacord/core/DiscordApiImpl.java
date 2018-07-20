@@ -2,9 +2,6 @@ package org.javacord.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.OkHttpClient;
-import okhttp3.logging.HttpLoggingInterceptor;
-import okhttp3.logging.HttpLoggingInterceptor.Level;
 import org.javacord.api.AccountType;
 import org.javacord.api.DiscordApi;
 import org.javacord.api.Javacord;
@@ -116,6 +113,7 @@ import org.javacord.core.util.event.ListenerManagerImpl;
 import org.javacord.core.util.gateway.DiscordWebSocketAdapter;
 import org.javacord.core.util.logging.LoggerUtil;
 import org.javacord.core.util.ratelimit.RatelimitManager;
+import org.javacord.core.util.rest.HttpClientWrapper;
 import org.javacord.core.util.rest.RestEndpoint;
 import org.javacord.core.util.rest.RestMethod;
 import org.javacord.core.util.rest.RestRequest;
@@ -124,6 +122,7 @@ import org.slf4j.Logger;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.net.http.HttpClient;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -162,7 +161,7 @@ public class DiscordApiImpl implements DiscordApi {
     /**
      * The http client for this instance.
      */
-    private final OkHttpClient httpClient;
+    private final HttpClientWrapper httpClient;
 
     /**
      * The event dispatcher.
@@ -386,15 +385,10 @@ public class DiscordApiImpl implements DiscordApi {
         this.reconnectDelayProvider = x ->
                 (int) Math.round(Math.pow(x, 1.5) - (1 / (1 / (0.1 * x) + 1)) * Math.pow(x, 1.5)) + (currentShard * 6);
 
-        this.httpClient = new OkHttpClient.Builder()
-                .addInterceptor(chain -> chain.proceed(chain.request()
-                        .newBuilder()
-                        .addHeader("User-Agent", Javacord.USER_AGENT)
-                        .build()))
-                .addInterceptor(
-                        new HttpLoggingInterceptor(LoggerUtil.getLogger(OkHttpClient.class)::trace).setLevel(Level.BODY)
-                )
-                .build();
+        this.httpClient = new HttpClientWrapper(HttpClient.newHttpClient());
+        this.httpClient.addUniversalHeader("User-Agent", Javacord.USER_AGENT);
+        this.httpClient.setLogger(LoggerUtil.getLogger(HttpClientWrapper.class)::trace);
+
         this.eventDispatcher = new EventDispatcher(this);
 
         if (ready != null) {
@@ -478,11 +472,11 @@ public class DiscordApiImpl implements DiscordApi {
     }
 
     /**
-     * Gets the used {@link OkHttpClient http client} for this api instance.
+     * Gets the used {@link HttpClientWrapper http client} for this api instance.
      *
      * @return The used http client.
      */
-    public OkHttpClient getHttpClient() {
+    public HttpClientWrapper getHttpClient() {
         return httpClient;
     }
 
@@ -1114,8 +1108,9 @@ public class DiscordApiImpl implements DiscordApi {
                     // shutdown thread pool if within one minute no disconnect event was dispatched
                     threadPool.getDaemonScheduler().schedule(threadPool::shutdown, 1, TimeUnit.MINUTES);
                 }
-                httpClient.dispatcher().executorService().shutdown();
-                httpClient.connectionPool().evictAll();
+                //TODO: Find replacement for these under HttpClient
+                //httpClient.dispatcher().executorService().shutdown();
+                //httpClient.connectionPool().evictAll();
                 ratelimitManager.cleanup();
             }
             disconnectCalled = true;

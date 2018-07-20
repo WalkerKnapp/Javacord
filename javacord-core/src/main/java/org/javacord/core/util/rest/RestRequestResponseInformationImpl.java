@@ -46,7 +46,7 @@ public class RestRequestResponseInformationImpl implements RestRequestResponseIn
 
     @Override
     public int getCode() {
-        return restRequestResult.getResponse().code();
+        return restRequestResult.getResponse().statusCode();
     }
 
     @Override

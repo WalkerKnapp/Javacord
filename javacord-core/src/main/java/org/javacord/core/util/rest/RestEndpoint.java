@@ -1,9 +1,10 @@
 package org.javacord.core.util.rest;
 
-import okhttp3.HttpUrl;
 import org.javacord.api.Javacord;
 
-import java.util.Optional;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.*;
 
 /**
  * This enum contains all endpoints which we may use.
@@ -149,10 +150,11 @@ public enum RestEndpoint {
      * Gets the full url of the endpoint.
      * Parameters which are "too much" are added to the end.
      *
-     * @param parameters The parameters of the url. E.g. for channel ids.
+     * @param queryParameters The query parameters to be appended to the url. Can be empty.
+     * @param parameters The parameters of the url. E.g. for channel ids
      * @return The full url of the endpoint.
      */
-    public String getFullUrl(String... parameters) {
+    public String getFullUrl(Map<String, String> queryParameters, String... parameters) {
         StringBuilder url = new StringBuilder("https://discordapp.com/api/v" + Javacord.DISCORD_API_VERSION + getEndpointUrl());
         url = new StringBuilder(String.format(url.toString(), (Object[]) parameters));
         int parameterAmount = getEndpointUrl().split("%s").length - (getEndpointUrl().endsWith("%s") ? 0 : 1);
@@ -161,18 +163,40 @@ public enum RestEndpoint {
                 url.append("/").append(parameters[i]);
             }
         }
+        if(queryParameters.size() > 0) {
+            List<String> queryKeys = new ArrayList<>(queryParameters.keySet());
+            url.append("?");
+            for (int i = 0; i < queryParameters.size(); i++) {
+                if(i > 0){
+                    url.append(",");
+                }
+                url.append(queryKeys.get(i)).append("=").append(queryParameters.get(queryKeys.get(i)));
+            }
+        }
         return url.toString();
     }
 
     /**
-     * Gets the full {@link HttpUrl http url} of the endpoint.
+     * Gets the full url of the endpoint.
      * Parameters which are "too much" are added to the end.
      *
+     * @param parameters The parameters of the url. E.g. for channel ids
+     * @return The full url of the endpoint.
+     */
+    public String getFullUrl(String... parameters) {
+        return getFullUrl(new HashMap<>(), parameters);
+    }
+
+    /**
+     * Gets the full {@link URI uri} of the endpoint.
+     * Parameters which are "too much" are added to the end.
+     *
+     * @param queryParameters The query parameters to be appended to the URL.
      * @param parameters The parameters of the url. E.g. for channel ids.
      * @return The full http url of the endpoint.
      */
-    public HttpUrl getOkHttpUrl(String... parameters) {
-        return HttpUrl.parse(getFullUrl(parameters));
+    public URI getURI(Map<String, String> queryParameters, String... parameters) throws URISyntaxException {
+        return new URI(getFullUrl(queryParameters, parameters));
     }
 
 }

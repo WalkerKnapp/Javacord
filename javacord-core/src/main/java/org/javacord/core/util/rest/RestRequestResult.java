@@ -3,20 +3,19 @@ package org.javacord.core.util.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 
 import java.io.IOException;
+import java.net.http.HttpResponse;
 import java.util.Optional;
 
 /**
  * The result of a {@link RestRequest}.
  */
-public class RestRequestResult {
+public class RestRequestResult <T> {
 
     private final RestRequest<?> request;
-    private final Response response;
-    private final ResponseBody body;
+    private final HttpResponse<T> response;
+    private final T body;
     private final String stringBody;
     private final JsonNode jsonBody;
 
@@ -25,9 +24,9 @@ public class RestRequestResult {
      *
      * @param request The request of the result.
      * @param response The response of the RestRequest.
-     * @throws IOException Passed on from {@link ResponseBody#string()}.
+     * @throws IOException Passed on from {@link ObjectMapper#readTree(String)}.
      */
-    public RestRequestResult(RestRequest<?> request, Response response) throws IOException {
+    public RestRequestResult(RestRequest<?> request, HttpResponse<T> response) throws IOException {
         this.request = request;
         this.response = response;
         this.body = response.body();
@@ -35,7 +34,7 @@ public class RestRequestResult {
             stringBody = null;
             jsonBody = NullNode.getInstance();
         } else {
-            stringBody = body.string();
+            stringBody = body.toString();
             ObjectMapper mapper = request.getApi().getObjectMapper();
             jsonBody = mapper.readTree(stringBody);
         }
@@ -55,7 +54,7 @@ public class RestRequestResult {
      *
      * @return The response of the RestRequest.
      */
-    public Response getResponse() {
+    public HttpResponse<T> getResponse() {
         return response;
     }
 
@@ -64,7 +63,7 @@ public class RestRequestResult {
      *
      * @return The body of the response.
      */
-    public Optional<ResponseBody> getBody() {
+    public Optional<T> getBody() {
         return Optional.ofNullable(body);
     }
 

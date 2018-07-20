@@ -2,9 +2,6 @@ package org.javacord.core.entity.message;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import okhttp3.MediaType;
-import okhttp3.MultipartBody;
-import okhttp3.RequestBody;
 import org.javacord.api.entity.Icon;
 import org.javacord.api.entity.Mentionable;
 import org.javacord.api.entity.channel.TextChannel;
@@ -22,6 +19,7 @@ import org.javacord.core.util.rest.RestMethod;
 import org.javacord.core.util.rest.RestRequest;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
@@ -245,9 +243,16 @@ public class MessageBuilderDelegateImpl implements MessageBuilderDelegate {
             // We access files etc. so this should be async
             channel.getApi().getThreadPool().getExecutorService().submit(() -> {
                 try {
-                    MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
-                            .setType(MultipartBody.FORM)
-                            .addFormDataPart("payload_json", body.toString());
+                    ByteArrayOutputStream byteArrayBodyBuffer = new ByteArrayOutputStream();
+
+                    byteArrayBodyBuffer.writeBytes(("--boundary\r\n" +
+                            "Content-Disposition: form-data; name=\"payload_json\"\r\n" +
+                            "Content-Type: application/json\r\n" +
+                            "\r\n" +
+                            body.toString() +
+                            "\r\n" +
+                            "--boundary").getBytes());
+
                     List<FileContainer> tempAttachments = new ArrayList<>(attachments);
                     // Add the attachments required for the embed
                     if (embed != null) {
@@ -263,11 +268,17 @@ public class MessageBuilderDelegateImpl implements MessageBuilderDelegate {
                         if (mediaType == null) {
                             mediaType = "application/octet-stream";
                         }
-                        multipartBodyBuilder.addFormDataPart("file" + i, tempAttachments.get(i).getFileTypeOrName(),
-                                RequestBody.create(MediaType.parse(mediaType), bytes));
+                        byteArrayBodyBuffer.writeBytes(("\r\n" +
+                                "Content-Disposition: form-data; name=\"file" + i + "\"; filename=\"" + tempAttachments.get(i).getFileTypeOrName() + "\"\r\n" +
+                                "Content-Type: " + mediaType + "\r\n" +
+                                "\r\n").getBytes());
+                        byteArrayBodyBuffer.writeBytes(bytes);
+                        byteArrayBodyBuffer.writeBytes("\r\n--boundary".getBytes());
                     }
 
-                    request.setMultipartBody(multipartBodyBuilder.build());
+                    byteArrayBodyBuffer.writeBytes("--\r\n".getBytes());
+
+                    request.setMultipartBody(byteArrayBodyBuffer.toByteArray());
                     request.execute(result -> ((DiscordApiImpl) channel.getApi())
                             .getOrCreateMessage(channel, result.getJsonBody()))
                             .whenComplete((message, throwable) -> {

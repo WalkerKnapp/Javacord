@@ -1,6 +1,5 @@
 package org.javacord.core.util.ratelimit;
 
-import okhttp3.Response;
 import org.javacord.api.DiscordApi;
 import org.javacord.api.exception.DiscordException;
 import org.javacord.api.exception.RatelimitException;
@@ -13,6 +12,7 @@ import org.javacord.core.util.rest.RestRequestResponseInformationImpl;
 import org.javacord.core.util.rest.RestRequestResult;
 import org.slf4j.Logger;
 
+import java.net.http.HttpResponse;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -156,7 +156,7 @@ public class RatelimitManager implements Cleanupable {
                             calculateOffset(currentTime, result);
                         }
 
-                        if (result.getResponse().code() == 429) {
+                        if (result.getResponse().statusCode() == 429) {
                             remove = false;
                             rateLimitHeadersSource = null;
                             logger.debug("Received a 429 response from Discord! Recalculating time offset...");
@@ -180,22 +180,20 @@ public class RatelimitManager implements Cleanupable {
                     } finally {
                         try {
                             if (rateLimitHeadersSource != null) {
-                                Response response = rateLimitHeadersSource.getResponse();
-                                String remaining = response.header("X-RateLimit-Remaining", "1");
+                                HttpResponse response = rateLimitHeadersSource.getResponse();
+                                long remaining = response.headers().firstValueAsLong("X-RateLimit-Remaining").orElse(1);
                                 long reset = restRequest
                                         .getEndpoint()
                                         .getHardcodedRatelimit()
                                         .map(ratelimit -> System.currentTimeMillis() + api.getTimeOffset() + ratelimit)
                                         .orElseGet(
-                                                () -> Long.parseLong(response.header("X-RateLimit-Reset", "0")) * 1000
+                                                () -> response.headers().firstValueAsLong("X-RateLimit-Reset").orElse(0L) * 1000
                                         );
-                                String global = response.header("X-RateLimit-Global");
+                                response.headers().firstValue("X-RateLimit-Global")
+                                        .filter(global -> global.equals("true"))
+                                        .ifPresent(global -> bucket.getEndpoint().ifPresent(endpoint -> endpoint.setGlobal(true)));
 
-                                if (global != null && global.equals("true")) {
-                                    // Mark the endpoint as global
-                                    bucket.getEndpoint().ifPresent(endpoint -> endpoint.setGlobal(true));
-                                }
-                                bucket.setRateLimitRemaining(Integer.parseInt(remaining));
+                                bucket.setRateLimitRemaining((int) remaining);
                                 bucket.setRateLimitResetTimestamp(reset);
                             }
                         } catch (Throwable t) {
@@ -228,13 +226,14 @@ public class RatelimitManager implements Cleanupable {
     private void calculateOffset(long currentTime, RestRequestResult result) {
         // Discord sends the date in their header in the format RFC_1123_DATE_TIME
         // We use this header to calculate a possible offset between our local time and the discord time
-        String date = result.getResponse().header("Date");
-        if (date != null) {
-            long discordTimestamp = OffsetDateTime.parse(date, DateTimeFormatter.RFC_1123_DATE_TIME)
-                    .toInstant().toEpochMilli();
-            api.setTimeOffset((discordTimestamp - currentTime));
-            logger.debug("Calculated an offset of " + api.getTimeOffset() + " to the Discord time.");
-        }
+        result.getResponse().headers()
+                .firstValue("Date")
+                .map(date -> OffsetDateTime.parse(date, DateTimeFormatter.RFC_1123_DATE_TIME)
+                        .toInstant().toEpochMilli())
+                .ifPresent(discordTimestamp -> {
+                    api.setTimeOffset((discordTimestamp - currentTime));
+                    logger.debug("Calculated an offset of " + api.getTimeOffset() + " to the Discord time.");
+                });
     }
 
     @Override
